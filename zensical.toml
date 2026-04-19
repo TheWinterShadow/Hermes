@@ -1,0 +1,62 @@
+[project]
+name = "Hermes"
+site_url = "https://thewintershadow.github.io/Hermes/"
+
+[project.theme]
+name = "material"
+logo = "assets/hermes.png"
+favicon = "assets/hermes.png"
+features = [
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.instant.progress",
+    "navigation.tabs",
+    "navigation.top",
+    "navigation.footer",
+    "content.code.copy",
+    "toc.integrate",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "deep purple"
+accent = "amber"
+toggle = { icon = "lucide/moon", name = "Switch to dark mode" }
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "deep purple"
+accent = "amber"
+toggle = { icon = "lucide/sun", name = "Switch to light mode" }
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+[[project.nav]]
+Home = "index.md"
+
+[[project.nav]]
+Installation = "installation/index.md"
+
+[[project.nav]]
+Usage = "usage/index.md"
+
+[[project.nav]]
+Architecture = "architecture/index.md"
+
+[[project.nav]]
+Privacy = "privacy/index.md"
+
+[project.extra]
+social = [
+    { icon = "fontawesome/brands/github", link = "https://github.com/TheWinterShadow/Hermes" },
+]
+
+[project.markdown_extensions]
+pymdownx_highlight = { anchor_linenums = true }
+pymdownx_superfences = {}
+pymdownx_tabbed = { alternate_style = true }
+admonition = {}
+pymdownx_details = {}
+attr_list = {}
+md_in_html = {}
