@@ -85,13 +85,31 @@ jobs:
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait
+            --wait 2>&1 | tee notarytool-output.txt
+
+          # Extract submission ID and fetch the log regardless of result
+          SUBMISSION_ID=$(grep -o 'id: [a-f0-9-]*' notarytool-output.txt | head -1 | cut -d' ' -f2)
+          if [ -n "$SUBMISSION_ID" ]; then
+            echo "Fetching notarization log for $SUBMISSION_ID..."
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              notarization-log.json || true
+            cat notarization-log.json
+          fi
+
+          # Fail if notarization was not accepted
+          if grep -q "status: Invalid" notarytool-output.txt; then
+            echo "::error::Notarization failed. See log above."
+            exit 1
+          fi
 
           # Staple the notarization ticket to the app
           xcrun stapler staple Hermes.app
 
           # Clean up
-          rm -f Hermes.zip
+          rm -f Hermes.zip notarytool-output.txt notarization-log.json
 
       - name: Create DMG
         uses: L-Super/create-dmg-actions@v1.0.3
