@@ -1,8 +1,8 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 
 /// Converts audio buffers to the format WhisperKit expects: 16kHz mono Float32.
 enum AudioBufferConverter {
-    static let whisperFormat = AVAudioFormat(
+    nonisolated(unsafe) static let whisperFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: 16000,
         channels: 1,
