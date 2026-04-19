@@ -52,11 +52,13 @@ social = [
     { icon = "fontawesome/brands/github", link = "https://github.com/TheWinterShadow/Hermes" },
 ]
 
-[project.markdown_extensions]
-pymdownx_highlight = { anchor_linenums = true }
-pymdownx_superfences = {}
-pymdownx_tabbed = { alternate_style = true }
-admonition = {}
-pymdownx_details = {}
-attr_list = {}
-md_in_html = {}
+markdown_extensions = [
+    "admonition",
+    "attr_list",
+    "md_in_html",
+    "pymdownx.details",
+    "pymdownx.highlight",
+    "pymdownx.superfences",
+    "pymdownx.tabbed",
+    "pymdownx.keys",
+]
