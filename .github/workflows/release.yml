@@ -62,6 +62,8 @@ jobs:
             -configuration Release \
             -derivedDataPath build \
             -arch arm64 \
+            OTHER_CODE_SIGN_FLAGS=--timestamp \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             build
 
       - name: Prepare app bundle
