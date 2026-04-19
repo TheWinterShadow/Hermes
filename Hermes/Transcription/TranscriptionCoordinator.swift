@@ -52,6 +52,15 @@ final class TranscriptionCoordinator: ObservableObject {
     private var meChunkCount = 0
     private var themChunkCount = 0
 
+    /// Append incoming audio samples to the appropriate channel buffer.
+    ///
+    /// When a channel's buffer reaches `windowDuration` seconds of audio, it's drained
+    /// and dispatched to `transcribeBuffer()` as an async task. This means both channels
+    /// can be transcribed concurrently — the `.me` and `.them` buffers are independent.
+    ///
+    /// - Parameters:
+    ///   - samples: Raw Float32 audio samples from the capture pipeline.
+    ///   - speaker: Which channel produced these samples.
     func appendSamples(_ samples: [Float], from speaker: Speaker) {
         let sampleRate: Double
         switch speaker {
@@ -84,6 +93,7 @@ final class TranscriptionCoordinator: ObservableObject {
         }
     }
 
+    /// Compute RMS (root mean square) of audio samples — used for silence detection.
     private static func rms(_ samples: [Float]) -> Float {
         guard !samples.isEmpty else { return 0 }
         let sumSquares = samples.reduce(Float(0)) { $0 + $1 * $1 }
@@ -109,6 +119,14 @@ final class TranscriptionCoordinator: ObservableObject {
     /// ("Thank you", "Thanks for watching", etc.). Skip it.
     private let silenceRMSThreshold: Float = 0.001
 
+    /// Transcribe a drained audio buffer and publish results to the UI.
+    ///
+    /// Pipeline: silence gate → resample to 16kHz → WhisperKit transcription → merge
+    /// into speaker turns. The silence gate (RMS < 0.001) prevents WhisperKit from
+    /// hallucinating common phrases ("Thank you", "Thanks for watching") on silent buffers.
+    ///
+    /// Consecutive segments from the same speaker are merged into a single `TranscriptLine`
+    /// to produce natural-looking continuous speaker turns.
     private func transcribeBuffer(_ samples: [Float], speaker: Speaker, sampleRate: Double) async {
         let duration = Double(samples.count) / sampleRate
         let rms = Self.rms(samples)
@@ -165,6 +183,11 @@ final class TranscriptionCoordinator: ObservableObject {
     }
 
     /// Simple linear interpolation resampling to 16kHz.
+    ///
+    /// WhisperKit requires 16kHz mono Float32 input. CATap system audio comes in at
+    /// 48kHz (or whatever the output device uses), and the mic may be at 44.1kHz or 48kHz.
+    /// This is a basic lerp resampler — not production-quality for music, but perfectly
+    /// adequate for speech transcription.
     private func resampleTo16kHz(_ samples: [Float], from sourceSampleRate: Double) -> [Float] {
         let ratio = 16000.0 / sourceSampleRate
         let outputCount = Int(Double(samples.count) * ratio)
@@ -183,6 +206,10 @@ final class TranscriptionCoordinator: ObservableObject {
         return output
     }
 
+    /// Reset all state for a new recording session.
+    ///
+    /// Called by `AppDelegate` when starting a new recording. Clears all buffers,
+    /// transcript lines, and persisted segments.
     func reset() {
         lines.removeAll()
         meSamples.removeAll()

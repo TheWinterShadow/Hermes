@@ -2,6 +2,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Shows the full transcript for a single meeting session.
+///
+/// Displays session metadata (title, date, duration, segment count) in a header,
+/// followed by a scrollable list of transcript segments. Toolbar button exports
+/// the transcript as a Markdown file via `NSSavePanel`.
 struct SessionDetailView: View {
     let session: MeetingSession
     @State private var showingExporter = false
@@ -58,6 +62,7 @@ struct SessionDetailView: View {
         }
     }
 
+    /// Present an NSSavePanel and write the transcript as Markdown.
     private func exportMarkdown() {
         let markdown = formatAsMarkdown()
 
@@ -72,6 +77,10 @@ struct SessionDetailView: View {
         }
     }
 
+    /// Format the entire session transcript as a Markdown document.
+    ///
+    /// Output includes session metadata (date, duration) and each segment labeled
+    /// by speaker in bold. Suitable for saving or sharing.
     private func formatAsMarkdown() -> String {
         var md = "# Meeting Transcript\n\n"
         md += "**Date:** \(session.startDate.formatted(date: .long, time: .shortened))\n"
@@ -89,6 +98,7 @@ struct SessionDetailView: View {
     }
 }
 
+/// Renders a single transcript segment with speaker label, text, and optional time range.
 struct SegmentRowView: View {
     let segment: TranscriptSegment
 
@@ -114,6 +124,7 @@ struct SegmentRowView: View {
         }
     }
 
+    /// Format a time range as "M:SS – M:SS" for display under transcript segments.
     private func formatTimeRange(_ start: TimeInterval, _ end: TimeInterval) -> String {
         let fmt = { (t: TimeInterval) -> String in
             let m = Int(t) / 60

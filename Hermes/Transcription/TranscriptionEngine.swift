@@ -26,7 +26,16 @@ actor TranscriptionEngine {
     }
 
     /// Transcribe a buffer of raw Float32 audio samples.
-    /// Samples should be 16kHz mono. Returns transcription segments.
+    ///
+    /// Samples must be 16kHz mono (resampled by `TranscriptionCoordinator` before calling).
+    /// Uses English-only mode for faster inference. Results are mapped from WhisperKit's
+    /// segment type to our `TranscriptSegment`, with special tokens stripped.
+    ///
+    /// - Parameters:
+    ///   - samples: Raw Float32 audio at 16kHz sample rate.
+    ///   - speaker: Which channel produced this audio (`.me` or `.them`).
+    /// - Returns: Array of transcript segments, filtered to exclude empty text.
+    /// - Throws: `TranscriptionError.modelNotLoaded` if called before `loadModel()`.
     func transcribe(samples: [Float], speaker: Speaker) async throws -> [TranscriptSegment] {
         guard let whisperKit else {
             throw TranscriptionError.modelNotLoaded
@@ -34,6 +43,8 @@ actor TranscriptionEngine {
 
         guard !samples.isEmpty else { return [] }
 
+        // DecodingOptions: verbose=false suppresses per-token logging, task=.transcribe
+        // (not .translate), language="en" forces English-only mode for lower latency.
         let options = DecodingOptions(
             verbose: false,
             task: .transcribe,

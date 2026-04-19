@@ -3,30 +3,61 @@ import Carbon.HIToolbox
 import SwiftData
 import SwiftUI
 
+/// Central orchestrator for the Hermes app.
+///
+/// Owns all top-level subsystems — menu bar, overlay panel, audio capture,
+/// transcription coordination, and session persistence — and wires them together.
+/// Runs on `@MainActor` because it drives UI and uses SwiftData's main context.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // MARK: - UI
+
+    /// macOS menu bar status item (the app's only persistent UI anchor).
     private var statusItem: NSStatusItem!
+
+    /// Floating overlay panel that displays the live transcript.
     private var overlayPanel: OverlayPanel!
+
+    /// Session history window; lazily created on first open, reused thereafter.
     private var historyWindow: NSWindow?
+
+    /// Reference to the registered Carbon global hotkey (Cmd+Shift+R).
     private var globalHotkeyRef: EventHotKeyRef?
 
+    // MARK: - Subsystems
+
+    /// Manages dual audio capture: CATap (system audio) + AVAudioEngine (mic).
     private let audioCaptureManager = AudioCaptureManager()
+
+    /// Buffers audio, resamples to 16kHz, and drives WhisperKit transcription.
     private let transcriptionCoordinator = TranscriptionCoordinator()
+
+    /// Enumerates available input devices for the mic picker dropdown.
     private let audioDeviceManager = AudioDeviceManager()
+
+    /// Shared state between the panel window and its SwiftUI content (collapse, recording state).
     private let overlayState = OverlayState()
+
+    /// The currently active recording session, or `nil` when idle.
     private var currentSession: MeetingSession?
 
+    // MARK: - Lifecycle
+
+    /// Called once at launch. Sets up every subsystem and kicks off WhisperKit model loading.
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         setupOverlayPanel()
         setupAudioPipeline()
         registerGlobalHotkey()
 
+        // Model loading is async — transcription won't work until this completes,
+        // but the UI is fully usable immediately (shows "model loading..." placeholder).
         Task { await transcriptionCoordinator.loadModel() }
     }
 
     // MARK: - Menu Bar
 
+    /// Create the macOS menu bar status item with the Hermes icon and dropdown menu.
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
@@ -74,6 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Overlay Panel
 
+    /// Build the floating overlay panel, injecting all dependencies and action callbacks.
+    /// The panel is created once and shown/hidden as needed.
     private func setupOverlayPanel() {
         let actions = OverlayActions(
             onStartRecording: { [weak self] in self?.startRecording() },
@@ -92,6 +125,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Audio Pipeline
 
+    /// Wire the audio capture manager's output to the transcription coordinator.
+    ///
+    /// Audio samples arrive on background threads via `@Sendable` callback.
+    /// We dispatch to `@MainActor` because `TranscriptionCoordinator` is MainActor-isolated.
     private func setupAudioPipeline() {
         let coordinator = transcriptionCoordinator
         audioCaptureManager.onAudioSamples = { @Sendable samples, speaker in
@@ -103,6 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Recording Actions
 
+    /// Begin a new recording: reset coordinator state, create a SwiftData session,
+    /// show the overlay, and start dual audio capture.
     private func startRecording() {
         transcriptionCoordinator.reset()
         startSession()
@@ -119,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Stop capture, flush remaining audio to transcription, persist session, reset state.
     private func stopRecording() {
         audioCaptureManager.stopCapture()
         transcriptionCoordinator.flush()
@@ -127,18 +167,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateMenuBarState()
     }
 
+    /// Pause both mic and system audio capture without ending the session.
     private func pauseRecording() {
         audioCaptureManager.pauseCapture()
         overlayState.recordingState = .paused
         updateMenuBarState()
     }
 
+    /// Resume both audio streams after a pause.
     private func resumeRecording() {
         audioCaptureManager.resumeCapture()
         overlayState.recordingState = .recording
         updateMenuBarState()
     }
 
+    /// Sync the menu bar icon and first menu item title with current recording state.
     private func updateMenuBarState() {
         let isRecording = overlayState.recordingState != .idle
 
@@ -155,6 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Session Persistence
 
+    /// Create a new `MeetingSession` in SwiftData and insert it into the main context.
     private func startSession() {
         let session = MeetingSession(startDate: Date())
         let context = TranscriptStore.shared.container.mainContext
@@ -163,6 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[Hermes] Session started")
     }
 
+    /// Finalize the current session: set end date, copy transcript segments, save to disk.
     private func stopSession() {
         guard let session = currentSession else { return }
         session.endDate = Date()
@@ -181,7 +226,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Global Hotkey (Cmd+Shift+R)
 
+    /// Register a system-wide hotkey (Cmd+Shift+R) using the Carbon Event API.
+    ///
+    /// The Carbon EventHotKey API is the only way to register global hotkeys on macOS
+    /// without accessibility permissions. The handler dispatches to MainActor via
+    /// `DispatchQueue.main.async` since Carbon callbacks run on an unspecified thread.
     private func registerGlobalHotkey() {
+        // 0x48524D53 = "HRMS" in ASCII — unique signature for this app's hotkey
         var hotkeyID = EventHotKeyID(signature: OSType(0x48524D53), id: 1)
         let modifiers: UInt32 = UInt32(cmdKey | shiftKey)
 
@@ -214,10 +265,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Menu bar action target for the Start/Stop Recording item.
     @objc private func toggleRecording(_ sender: NSMenuItem) {
         performToggleRecording()
     }
 
+    /// Menu bar action target: toggle overlay panel visibility.
     @objc private func toggleOverlay(_ sender: NSMenuItem) {
         if overlayPanel.isVisible {
             overlayPanel.hide()
@@ -228,10 +281,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Menu bar action target: open session history window.
     @objc private func showHistory(_ sender: NSMenuItem) {
         openHistory()
     }
 
+    /// Open (or bring to front) the session history window.
+    ///
+    /// The window is created lazily on first call and reused for subsequent calls.
+    /// Uses `NSHostingView` to embed the SwiftUI `SessionListView`.
     private func openHistory() {
         if let window = historyWindow {
             window.makeKeyAndOrderFront(nil)

@@ -66,6 +66,8 @@ final class AudioCaptureManager: @unchecked Sendable {
 
     // MARK: - Start / Stop / Pause
 
+    /// Start both system audio (CATap) and microphone (AVAudioEngine) capture.
+    /// - Throws: `AudioCaptureError` if CATap or mic setup fails.
     func startCapture() throws {
         guard !isCapturing else { return }
 
@@ -76,6 +78,8 @@ final class AudioCaptureManager: @unchecked Sendable {
         isPaused = false
     }
 
+    /// Stop all capture. Cleanup order matters:
+    /// stop device → destroy IO proc → destroy aggregate device → destroy process tap.
     func stopCapture() {
         tearDownMicCapture()
         tearDownSystemAudioTap()
@@ -84,6 +88,7 @@ final class AudioCaptureManager: @unchecked Sendable {
         gSystemAudioPaused = false
     }
 
+    /// Pause capture: stop mic engine and suppress system audio IOProc forwarding.
     func pauseCapture() {
         guard isCapturing, !isPaused else { return }
         micEngine?.pause()
@@ -92,6 +97,7 @@ final class AudioCaptureManager: @unchecked Sendable {
         print("[AudioCapture] Paused.")
     }
 
+    /// Resume capture after a pause.
     func resumeCapture() {
         guard isCapturing, isPaused else { return }
         gSystemAudioPaused = false
@@ -102,6 +108,19 @@ final class AudioCaptureManager: @unchecked Sendable {
 
     // MARK: - System Audio (CATap)
 
+    /// Set up the full CATap pipeline for capturing all system audio.
+    ///
+    /// Steps:
+    /// 1. Create a `CATapDescription` process tap (macOS 14.2+) targeting all system audio.
+    /// 2. Create a private aggregate device (empty sub-device list, two-phase pattern).
+    /// 3. Attach the tap to the aggregate device post-creation via property set.
+    /// 4. Register a C-function-pointer IOProc and start the device.
+    ///
+    /// Key insight: `isExclusive = true` with empty `processes` means "the process list
+    /// is an exclusion list" — exclude nothing = capture everything. `isExclusive = false`
+    /// with empty processes would capture nothing (zero-filled buffers).
+    ///
+    /// - Throws: `AudioCaptureError` at each step if Core Audio returns an error status.
     private func setupSystemAudioTap() throws {
         // 1. Create a system-wide process tap (empty processes = all system audio)
         let tapDescription = CATapDescription()
@@ -179,7 +198,16 @@ final class AudioCaptureManager: @unchecked Sendable {
     }
 
     /// Attach a process tap to an existing aggregate device by setting
-    /// kAudioAggregateDevicePropertyTapList after creation.
+    /// `kAudioAggregateDevicePropertyTapList` after creation.
+    ///
+    /// This two-phase approach (create aggregate, then attach tap) avoids `-10877`
+    /// (`kAudioUnitErr_NoConnection`) errors that occur when trying to wire the tap
+    /// during aggregate device creation.
+    ///
+    /// - Parameters:
+    ///   - aggregateID: The aggregate device to attach the tap to.
+    ///   - tapUID: The UID string of the process tap to attach.
+    /// - Throws: `AudioCaptureError.propertyReadFailed` if the property set fails.
     private func attachTapToAggregateDevice(
         aggregateID: AudioObjectID, tapUID: String
     ) throws {
@@ -199,6 +227,8 @@ final class AudioCaptureManager: @unchecked Sendable {
         }
     }
 
+    /// Tear down system audio capture in the correct order to avoid crashes.
+    /// Order: stop device → destroy IO proc → destroy aggregate device → destroy process tap.
     private func tearDownSystemAudioTap() {
         if let procID = deviceProcID, aggregateDeviceID != AudioObjectID(kAudioObjectUnknown) {
             AudioDeviceStop(aggregateDeviceID, procID)
@@ -221,6 +251,13 @@ final class AudioCaptureManager: @unchecked Sendable {
 
     // MARK: - Microphone (AVAudioEngine)
 
+    /// Set up microphone capture using AVAudioEngine.
+    ///
+    /// If `micDeviceID` is set, points the engine's input node at that device
+    /// via `kAudioOutputUnitProperty_CurrentDevice`. Otherwise uses the system default.
+    /// Installs a tap on bus 0 that forwards raw Float32 samples to `onAudioSamples`.
+    ///
+    /// - Throws: If `AVAudioEngine.start()` fails.
     private func setupMicCapture() throws {
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
@@ -259,6 +296,7 @@ final class AudioCaptureManager: @unchecked Sendable {
         print("[AudioCapture] Microphone capture started (device: \(micDeviceID.map(String.init) ?? "default")). Format: \(inputFormat)")
     }
 
+    /// Remove the tap and stop the mic engine.
     private func tearDownMicCapture() {
         micEngine?.inputNode.removeTap(onBus: 0)
         micEngine?.stop()
@@ -268,6 +306,7 @@ final class AudioCaptureManager: @unchecked Sendable {
 
     // MARK: - Core Audio Helpers
 
+    /// Read the system default output device ID.
     private func readDefaultOutputDevice() throws -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
@@ -287,6 +326,7 @@ final class AudioCaptureManager: @unchecked Sendable {
         return deviceID
     }
 
+    /// Read the UID string for an audio device.
     private func readDeviceUID(deviceID: AudioObjectID) throws -> String {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceUID,
@@ -305,6 +345,7 @@ final class AudioCaptureManager: @unchecked Sendable {
         return uid as String
     }
 
+    /// Read the UID string for a process tap.
     private func readTapUID(tapID: AudioObjectID) throws -> String {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioTapPropertyUID,
@@ -323,6 +364,8 @@ final class AudioCaptureManager: @unchecked Sendable {
         return uid as String
     }
 
+    /// Read the audio stream format from a process tap via `kAudioTapPropertyFormat`.
+    /// The format must be read from the tap, not the output device.
     private func readTapFormat(tapID: AudioObjectID) throws -> AudioStreamBasicDescription {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioTapPropertyFormat,

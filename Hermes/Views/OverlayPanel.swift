@@ -50,6 +50,17 @@ final class OverlayPanel: NSPanel {
         setContent(coordinator: coordinator, deviceManager: deviceManager, overlayState: overlayState, actions: actions)
     }
 
+    /// Configures the panel to behave as a Granola-style floating overlay.
+    ///
+    /// Key choices:
+    /// - `.floating` level: stays above Zoom/Meet/Teams windows.
+    /// - `.nonactivatingPanel`: clicking the panel doesn't steal focus from the meeting app.
+    /// - `becomesKeyOnlyIfNeeded`: only becomes key window when a text field needs input,
+    ///   preventing the panel from stealing keyboard focus during normal use.
+    /// - `hidesOnDeactivate = false`: panel stays visible when the app loses focus.
+    /// - `canJoinAllSpaces`: visible across all macOS Spaces/desktops.
+    /// - `fullScreenAuxiliary`: visible alongside full-screen apps.
+    /// - Semi-transparent background (0.95 alpha) for a polished look.
     private func configurePanel() {
         title = "Hermes"
         level = .floating
@@ -77,6 +88,7 @@ final class OverlayPanel: NSPanel {
         setFrameOrigin(NSPoint(x: x, y: y))
     }
 
+    /// Embed the SwiftUI `OverlayContentView` inside this NSPanel via `NSHostingView`.
     private func setContent(
         coordinator: TranscriptionCoordinator,
         deviceManager: AudioDeviceManager,
@@ -95,6 +107,9 @@ final class OverlayPanel: NSPanel {
     }
 
     /// Animate between collapsed pill and expanded panel sizes.
+    ///
+    /// Keeps the top-right corner anchored so the panel doesn't jump around the screen.
+    /// Removes resizable/closable chrome when collapsed (the pill is too small for them).
     func animateToSize(collapsed: Bool) {
         let newWidth = collapsed ? Self.collapsedWidth : Self.expandedWidth
         let newHeight = collapsed ? Self.collapsedHeight : Self.expandedHeight

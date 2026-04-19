@@ -1,17 +1,29 @@
 import CoreAudio
 import Foundation
 
-/// Represents an audio input device.
+/// Represents an audio input device discovered on the system.
 struct AudioInputDevice: Identifiable, Hashable {
+    /// Core Audio device ID — used to configure AVAudioEngine's input node.
     let id: AudioDeviceID
+
+    /// Human-readable device name (e.g., "MacBook Pro Microphone").
     let name: String
+
+    /// Persistent unique identifier string for the device.
     let uid: String
 }
 
 /// Enumerates and monitors system audio input devices.
+///
+/// Provides a list of available input devices for the mic picker in the overlay UI.
+/// Filters out non-input devices and Hermes's own aggregate devices (created by
+/// `AudioCaptureManager` for CATap system audio capture).
 @MainActor
 final class AudioDeviceManager: ObservableObject {
+    /// All discovered input devices, excluding Hermes aggregate devices.
     @Published var inputDevices: [AudioInputDevice] = []
+
+    /// The user's selected input device. `nil` means "use system default".
     @Published var selectedDeviceID: AudioDeviceID?
 
     /// The system default input device ID, used as fallback.
@@ -35,7 +47,11 @@ final class AudioDeviceManager: ObservableObject {
         selectedDeviceID = defaultInputDeviceID
     }
 
-    /// Re-enumerate all input devices.
+    /// Re-enumerate all input devices from Core Audio.
+    ///
+    /// Queries `kAudioHardwarePropertyDevices`, then filters each device to include only
+    /// those with input streams (`kAudioDevicePropertyStreams` in input scope). Also
+    /// excludes any device whose name starts with "Hermes-" (our aggregate devices).
     func refresh() {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
@@ -85,6 +101,10 @@ final class AudioDeviceManager: ObservableObject {
         inputDevices = result
     }
 
+    /// Returns the human-readable name for a Core Audio device.
+    ///
+    /// - Parameter deviceID: The `AudioDeviceID` to query.
+    /// - Returns: The device name string, or empty string on failure.
     private func deviceName(for deviceID: AudioDeviceID) -> String {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceNameCFString,
@@ -97,6 +117,10 @@ final class AudioDeviceManager: ObservableObject {
         return name as String
     }
 
+    /// Returns the persistent UID string for a Core Audio device.
+    ///
+    /// - Parameter deviceID: The `AudioDeviceID` to query.
+    /// - Returns: The device UID string, or empty string on failure.
     private func deviceUID(for deviceID: AudioDeviceID) -> String {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceUID,

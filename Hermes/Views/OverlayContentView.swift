@@ -2,6 +2,9 @@ import CoreAudio
 import SwiftUI
 
 /// Actions the overlay can trigger, provided by AppDelegate.
+///
+/// Uses closure-based injection to decouple the overlay UI from `AppDelegate` —
+/// the view never directly references the delegate.
 struct OverlayActions {
     var onStartRecording: () -> Void = {}
     var onStopRecording: () -> Void = {}
@@ -34,6 +37,8 @@ struct OverlayContentView: View {
 
     // MARK: - Collapsed Pill
 
+    /// Collapsed state: a tiny 48x64 pill showing the Hermes icon (colored by recording state)
+    /// and an expand chevron. Minimal footprint while still indicating status.
     private var collapsedPill: some View {
         VStack(spacing: 6) {
             // App icon with status color
@@ -57,6 +62,7 @@ struct OverlayContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// Pill icon color: green=recording, yellow=paused, gray=idle.
     private var pillStatusColor: Color {
         switch overlayState.recordingState {
         case .recording: .green
@@ -67,6 +73,10 @@ struct OverlayContentView: View {
 
     // MARK: - Expanded Panel
 
+    /// Expanded state: full overlay with header (status, controls, mic picker),
+    /// divider, and scrolling transcript. Two header rows:
+    /// 1. Collapse button + status icon/text + recording controls + history button.
+    /// 2. Mic input device picker + current time.
     private var expandedPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header row 1: status + collapse + controls
@@ -173,6 +183,7 @@ struct OverlayContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// SF Symbol name for the current recording state.
     private var statusIcon: String {
         switch overlayState.recordingState {
         case .recording: "waveform.circle.fill"
@@ -197,6 +208,10 @@ struct OverlayContentView: View {
         }
     }
 
+    /// Recording controls: adapts to current state.
+    /// - Idle: red record button.
+    /// - Recording: yellow pause + red stop.
+    /// - Paused: green resume + red stop.
     @ViewBuilder
     private var recordingControls: some View {
         switch overlayState.recordingState {
@@ -260,6 +275,7 @@ struct OverlayContentView: View {
     }
 }
 
+/// Renders a single transcript line with speaker label and text.
 struct TranscriptLineView: View {
     @ObservedObject var line: TranscriptLine
 
@@ -280,7 +296,10 @@ struct TranscriptLineView: View {
 }
 
 /// View model for a speaker turn in the transcript.
-/// Text grows as new transcription windows arrive for the same speaker.
+///
+/// Implemented as an `ObservableObject` class (not a struct) so that consecutive
+/// same-speaker segments can be merged into one growing line via `append()`.
+/// The `@Published text` property triggers SwiftUI updates when text grows.
 class TranscriptLine: Identifiable, ObservableObject {
     let id = UUID()
     let speaker: Speaker
@@ -293,6 +312,8 @@ class TranscriptLine: Identifiable, ObservableObject {
         self.timestamp = timestamp
     }
 
+    /// Append additional transcribed text to this speaker turn.
+    /// Called when a new transcription window produces output for the same speaker.
     func append(_ newText: String) {
         text += " " + newText
     }

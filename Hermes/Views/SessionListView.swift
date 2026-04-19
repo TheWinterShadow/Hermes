@@ -2,7 +2,12 @@ import SwiftData
 import SwiftUI
 
 /// Shows a list of past meeting sessions with the ability to view full transcripts.
+///
+/// Uses a `NavigationSplitView` with a sidebar list of sessions and a detail pane
+/// showing the selected session's transcript. Sessions are sorted newest-first via
+/// `@Query`. Right-click context menu allows deletion.
 struct SessionListView: View {
+    /// All persisted sessions, sorted by start date descending.
     @Query(sort: \MeetingSession.startDate, order: .reverse) private var sessions: [MeetingSession]
     @Environment(\.modelContext) private var modelContext
     @State private var selectedSession: MeetingSession?
@@ -43,6 +48,7 @@ struct SessionListView: View {
         .frame(minWidth: 700, minHeight: 450)
     }
 
+    /// Delete a session from SwiftData. Clears selection if the deleted session was selected.
     private func deleteSession(_ session: MeetingSession) {
         if selectedSession == session {
             selectedSession = nil
@@ -51,6 +57,8 @@ struct SessionListView: View {
     }
 }
 
+/// Row view for a single session in the sidebar list.
+/// Shows title (or formatted date as fallback), date, duration, and segment count.
 struct SessionRowView: View {
     let session: MeetingSession
 
