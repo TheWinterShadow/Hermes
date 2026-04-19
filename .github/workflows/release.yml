@@ -14,6 +14,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Import Developer ID certificate
+        env:
+          CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          # Create a temporary keychain for the CI build
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import the .p12 certificate
+          echo "$CERT_BASE64" | base64 --decode > $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          # Allow codesign to access the keychain without prompting
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add the temporary keychain to the search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          # Verify the identity is available
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          # Clean up the .p12 file
+          rm -f $RUNNER_TEMP/cert.p12
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -34,6 +68,8 @@ jobs:
         run: |
           APP_PATH=$(find build -name "Hermes.app" -type d | head -1)
           cp -R "$APP_PATH" Hermes.app
+          # Verify the signature
+          codesign -dvv Hermes.app
 
       - name: Create DMG
         uses: L-Super/create-dmg-actions@v1.0.3
@@ -45,3 +81,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: Hermes-*.dmg
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
