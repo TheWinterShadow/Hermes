@@ -134,4 +134,4 @@ The `MeetingSession` model stores session metadata (start time, end time, title)
 | Persistence | SwiftData / SQLite |
 | Build system | XcodeGen → Xcode |
 | CI/CD | GitHub Actions |
-| Distribution | DMG (unsigned) |
+| Distribution | DMG (signed & notarized) |
