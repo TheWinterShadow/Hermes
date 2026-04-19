@@ -71,6 +71,28 @@ jobs:
           # Verify the signature
           codesign -dvv Hermes.app
 
+      - name: Notarize app bundle
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Create a zip for notarization submission
+          ditto -c -k --keepParent Hermes.app Hermes.zip
+
+          # Submit for notarization and wait for completion
+          xcrun notarytool submit Hermes.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple the notarization ticket to the app
+          xcrun stapler staple Hermes.app
+
+          # Clean up
+          rm -f Hermes.zip
+
       - name: Create DMG
         uses: L-Super/create-dmg-actions@v1.0.3
         with:
