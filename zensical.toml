@@ -1,6 +1,6 @@
 [project]
-name = "Hermes"
-site_url = "https://thewintershadow.github.io/Hermes/"
+site_name = "Hermes"
+site_url = "https://hermes.thewintershadow.com/"
 
 [project.theme]
 name = "material"
