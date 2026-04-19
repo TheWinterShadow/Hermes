@@ -37,10 +37,9 @@ Think of it as a personal, offline [Granola](https://www.granola.ai/) — transc
 
 ### From Release (DMG)
 
-1. Download `Hermes-v1.0.dmg` from the [latest release](https://github.com/TheWinterShadow/Hermes/releases/latest).
+1. Download `Hermes-v1.0.0.dmg` from the [latest release](https://github.com/TheWinterShadow/Hermes/releases/latest).
 2. Open the DMG and drag Hermes to Applications (or run it from anywhere).
-3. On first launch, macOS will warn that the app is from an unidentified developer. Right-click → Open, then click Open in the dialog.
-4. Grant microphone and Screen & System Audio permissions when prompted.
+3. Grant microphone and Screen & System Audio permissions when prompted.
 
 ### Build from Source
 

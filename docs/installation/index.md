@@ -24,21 +24,7 @@ The easiest way to install Hermes is from the GitHub releases page.
 2. Download `Hermes-v*.dmg`.
 3. Open the DMG and drag **Hermes.app** to your Applications folder (or run it from anywhere you like).
 
-### Bypass Gatekeeper
-
-Hermes is not signed with an Apple Developer certificate. On first launch, macOS will block it:
-
-1. **Right-click** (or Control-click) on Hermes.app.
-2. Select **Open** from the context menu.
-3. Click **Open** in the dialog that appears.
-
-You only need to do this once. After that, macOS remembers your choice.
-
-Alternatively, remove the quarantine attribute from the terminal:
-
-```bash
-xattr -d com.apple.quarantine /Applications/Hermes.app
-```
+Hermes is signed with an Apple Developer ID certificate, so macOS will not block it with Gatekeeper warnings.
 
 ## Build from Source
 
