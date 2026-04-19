@@ -1,6 +1,9 @@
 [project]
 site_name = "Hermes"
 site_url = "https://hermes.thewintershadow.com/"
+repo_name = "TheWinterShadow/Hermes"
+repo_url = "https://github.com/TheWinterShadow/Hermes"
+edit_uri = "edit/main/docs/"
 
 [project.theme]
 name = "material"
@@ -31,6 +34,8 @@ toggle = { icon = "lucide/sun", name = "Switch to light mode" }
 
 [project.theme.icon]
 repo = "fontawesome/brands/github"
+edit = "lucide/pencil"
+view = "lucide/eye"
 
 [[project.nav]]
 Home = "index.md"
